@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PolyTool — Coord Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; letter-spacing: .04em; color: #a5b4fc; }
+
+    .tool-group { display: flex; gap: 4px; margin-left: 8px; }
+    .tool-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 500;
+      background: #252840;
+      color: #94a3b8;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .tool-btn:hover { background: #2e3157; color: #e2e8f0; }
+    .tool-btn.active { background: #4f46e5; color: #fff; border-color: #6366f1; }
+
+    .sep { width: 1px; background: #2d3148; margin: 0 6px; align-self: stretch; }
+
+    .action-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 500;
+      transition: filter .15s;
+    }
+    .action-btn:hover { filter: brightness(1.15); }
+    .btn-undo   { background: #334155; color: #e2e8f0; }
+    .btn-clear  { background: #7f1d1d; color: #fca5a5; }
+    .btn-finish { background: #065f46; color: #6ee7b7; }
+    .btn-bg     { background: #292524; color: #d4a574; border: 1px dashed #57534e; }
+    .btn-bg:hover { background: #3c2a1e; border-color: #d4a574; }
+    .btn-rmbg   { background: #292524; color: #ef4444; border: 1px solid #57534e; }
+    .btn-rmbg:hover { filter: brightness(1.2); }
+    #inp-bg-file { display: none; }
+    .btn-export { background: #1a2e1a; color: #86efac; border: 1px solid #166534; }
+    .btn-export:hover { background: #166534; color: #fff; }
+
+    /* ── Color picker ── */
+    .color-swatch-btn {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.25);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 6px;
+      transition: border-color .15s, transform .15s;
+      position: relative;
+    }
+    .color-swatch-btn:hover { border-color: #fff; transform: scale(1.15); }
+
+    .color-popover {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      background: #1a1d2e;
+      border: 1px solid #3d4170;
+      border-radius: 8px;
+      padding: 8px;
+      display: none;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 148px;
+      z-index: 999;
+      box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    }
+    .color-popover.open { display: flex; }
+    .color-swatch {
+      width: 28px; height: 28px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color .12s, transform .12s;
+    }
+    .color-swatch:hover { transform: scale(1.1); }
+    .color-swatch.active { border-color: #fff; }
+
+    .normalize-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      font-size: .82rem;
+      color: #94a3b8;
+    }
+    .normalize-wrap input[type=number] {
+      width: 70px;
+      padding: 4px 6px;
+      background: #252840;
+      border: 1px solid #2d3148;
+      border-radius: 5px;
+      color: #e2e8f0;
+      font-size: .82rem;
+    }
+    label { cursor: default; }
+
+    /* ── Main layout ── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Canvas panel ── */
+    .canvas-wrap {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      background: #0d0f18;
+      cursor: crosshair;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    /* Ghost cursor label */
+    #cursor-label {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(15,17,30,.85);
+      border: 1px solid #4f46e5;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: .74rem;
+      color: #a5b4fc;
+      white-space: nowrap;
+      display: none;
+    }
+
+    /* ── Right panel ── */
+    .right-panel {
+      width: 380px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: #13151f;
+      border-left: 1px solid #2d3148;
+      overflow: hidden;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .panel-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: .8rem;
+      cursor: pointer;
+      color: #64748b;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+    .panel-tab.active { color: #a5b4fc; border-bottom-color: #4f46e5; }
+
+    .panel-content { flex: 1; overflow-y: auto; padding: 12px; display: none; }
+    .panel-content.active { display: block; }
+    #panel-json.active { display: flex; flex-direction: column; }
+
+    /* Shapes list */
+    .shape-item {
+      background: #1a1d2e;
+      border: 1px solid #252840;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      font-size: .78rem;
+    }
+    .shape-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .shape-badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      letter-spacing: .05em;
+    }
+    .badge-point   { background: #1e3a5f; color: #7dd3fc; }
+    .badge-line    { background: #1c3d2e; color: #6ee7b7; }
+    .badge-polygon { background: #3d1c6b; color: #c4b5fd; }
+
+    .shape-coords {
+      font-family: 'Consolas', monospace;
+      font-size: .72rem;
+      color: #94a3b8;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    .shape-del {
+      background: #3b1212;
+      border: 1px solid #7f1d1d;
+      border-radius: 5px;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px 10px;
+      transition: background .15s;
+    }
+    .shape-del:hover { background: #7f1d1d; color: #fca5a5; }
+    .shape-copy {
+      background: #0c2a3b;
+      border: 1px solid #1e3a5f;
+      border-radius: 5px;
+      color: #7dd3fc;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px 10px;
+      opacity: .85;
+      transition: opacity .15s, background .15s;
+    }
+    .shape-copy:hover { opacity: 1; background: #1e3a5f; }
+    .shape-copy.copied { color: #6ee7b7; background: #0d3326; border-color: #065f46; }
+
+    /* JSON output */
+    .json-controls {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .json-controls button {
+      flex: 1;
+      padding: 5px 0;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-size: .78rem;
+      font-weight: 500;
+    }
+    .btn-copy  { background: #1e3a5f; color: #7dd3fc; }
+    .btn-copy:hover  { background: #1d4ed8; color: #fff; }
+
+    .json-box {
+      background: #0d0f18;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: 'Consolas', monospace;
+      font-size: .73rem;
+      color: #a5b4fc;
+      white-space: pre;
+      overflow: auto;
+      flex: 1;
+      line-height: 1.55;
+    }
+
+    /* Status bar */
+    #statusbar {
+      font-size: .73rem;
+      padding: 4px 14px;
+      background: #1a1d27;
+      border-top: 1px solid #2d3148;
+      color: #64748b;
+      flex-shrink: 0;
+      display: flex;
+      gap: 16px;
+    }
+    #statusbar span { color: #94a3b8; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d0f18; }
+    ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>PolyTool</h1>
+  <div class="tool-group">
+    <div style="position:relative;display:flex;align-items:center">
+      <button class="tool-btn active" data-tool="point" title="P">Point</button>
+      <span class="color-swatch-btn" id="swatch-btn-point" data-tool="point" style="background:#7dd3fc" title="Change point color"></span>
+      <div class="color-popover" id="popover-point"></div>
+    </div>
+    <div style="position:relative;display:flex;align-items:center">
+      <button class="tool-btn" data-tool="line" title="L">Line</button>
+      <span class="color-swatch-btn" id="swatch-btn-line" data-tool="line" style="background:#6ee7b7" title="Change line color"></span>
+      <div class="color-popover" id="popover-line"></div>
+    </div>
+    <div style="position:relative;display:flex;align-items:center">
+      <button class="tool-btn" data-tool="polygon" title="G">Polygon</button>
+      <span class="color-swatch-btn" id="swatch-btn-polygon" data-tool="polygon" style="background:#c4b5fd" title="Change polygon color"></span>
+      <div class="color-popover" id="popover-polygon"></div>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <button class="action-btn btn-undo"   id="btn-undo">Undo</button>
+  <button class="action-btn btn-finish" id="btn-finish">Finish Shape</button>
+  <button class="action-btn btn-clear"  id="btn-clear">Clear All</button>
+  <div class="sep"></div>
+  <input type="file" id="inp-bg-file" accept="image/*">
+  <button class="action-btn btn-bg" id="btn-bg" title="Import background image (auto-sets W/H)">BG Image</button>
+  <button class="action-btn btn-rmbg" id="btn-rmbg" title="Remove background image" style="display:none">✕ BG</button>
+  <div class="sep"></div>
+  <button class="action-btn btn-export" id="btn-export" title="Export canvas as PNG">Export PNG</button>
+  <div class="sep"></div>
+  <div class="normalize-wrap">
+    <label>Canvas&nbsp;W</label>
+    <input type="number" id="inp-w" value="1920" min="1">
+    <label>H</label>
+    <input type="number" id="inp-h" value="1080" min="1">
+    <label style="margin-left:6px">Norm&nbsp;0→1</label>
+    <input type="checkbox" id="chk-norm" checked title="Output normalized [0,1] coordinates">
+    <label style="margin-left:6px">Grid</label>
+    <input type="checkbox" id="chk-grid" checked title="Toggle grid visibility">
+  </div>
+</header>
+
+<div class="workspace">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div id="cursor-label"></div>
+  </div>
+
+  <div class="right-panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" data-panel="shapes">Shapes</div>
+      <div class="panel-tab"        data-panel="json">JSON Output</div>
+    </div>
+
+    <div class="panel-content active" id="panel-shapes">
+      <div id="shapes-list"><p style="color:#4a5568;font-size:.8rem">No shapes yet. Click on the canvas to start.</p></div>
+    </div>
+
+    <div class="panel-content" id="panel-json">
+      <div class="json-controls">
+        <button class="btn-copy" id="btn-copy-json">Copy JSON</button>
+      </div>
+      <div class="json-box" id="json-box">{}</div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  Tool: <span id="sb-tool">Point</span>
+  &nbsp;|&nbsp; Mouse: <span id="sb-mouse">—</span>
+  &nbsp;|&nbsp; Shapes: <span id="sb-count">0</span>
+  &nbsp;|&nbsp; <span id="sb-hint">Click to place a point</span>
+</div>
+
+<script>
+/* =========================================================
+   PolyTool — main logic
+   ========================================================= */
+const canvas   = document.getElementById('canvas');
+const ctx      = canvas.getContext('2d');
+const wrap     = document.getElementById('canvas-wrap');
+const cursorLbl = document.getElementById('cursor-label');
+
+// ── State ──────────────────────────────────────────────────
+let tool         = 'point';          // 'point' | 'line' | 'polygon'
+let shapes       = [];               // committed shapes
+let current      = [];               // points being drawn
+let mouseCanvas  = { x: 0, y: 0 };  // last known mouse position (canvas px)
+let bgImage      = null;             // HTMLImageElement | null
+let hoveredShapeIdx = -1;            // index of shape highlighted from list
+
+// ── Resize canvas to fill wrapper ─────────────────────────
+function resizeCanvas() {
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  redraw();
+}
+new ResizeObserver(resizeCanvas).observe(wrap);
+
+// ── Coord helpers ──────────────────────────────────────────
+function getCanvasXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY,
+  };
+}
+
+function toWorld(cx, cy) {
+  // Map canvas px → "world" coordinates using the user-supplied canvas size
+  const W = parseFloat(document.getElementById('inp-w').value) || 1920;
+  const H = parseFloat(document.getElementById('inp-h').value) || 1080;
+  return {
+    x: cx / canvas.width  * W,
+    y: cy / canvas.height * H,
+  };
+}
+
+function normalize(wx, wy) {
+  const W = parseFloat(document.getElementById('inp-w').value) || 1920;
+  const H = parseFloat(document.getElementById('inp-h').value) || 1080;
+  return [ round6(wx / W), round6(wy / H) ];
+}
+
+function round6(v) { return Math.round(v * 1e6) / 1e6; }
+
+function worldToNormalized(wx, wy) {
+  return normalize(wx, wy);
+}
+
+function formatCoord(wx, wy) {
+  const norm = document.getElementById('chk-norm').checked;
+  if (norm) return normalize(wx, wy);
+  return [ round6(wx), round6(wy) ];
+}
+
+// ── Drawing ────────────────────────────────────────────────
+const COLORS = {
+  point:   '#7dd3fc',
+  line:    '#6ee7b7',
+  polygon: '#c4b5fd',
+  preview: '#facc15',
+};
+
+// ── Color picker ───────────────────────────────────────────
+const PALETTE = [
+  '#7dd3fc','#38bdf8','#0ea5e9','#1d4ed8',
+  '#6ee7b7','#34d399','#10b981','#065f46',
+  '#c4b5fd','#a78bfa','#8b5cf6','#6d28d9',
+  '#fde68a','#fbbf24','#f59e0b','#b45309',
+  '#fca5a5','#f87171','#ef4444','#b91c1c',
+  '#f0abfc','#e879f9','#d946ef','#86198f',
+  '#ffffff','#94a3b8','#475569','#1e293b',
+];
+
+function buildPopovers() {
+  ['point','line','polygon'].forEach(t => {
+    const pop = document.getElementById(`popover-${t}`);
+    PALETTE.forEach(hex => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (COLORS[t] === hex ? ' active' : '');
+      sw.style.background = hex;
+      sw.title = hex;
+      sw.addEventListener('click', e => {
+        e.stopPropagation();
+        COLORS[t] = hex;
+        document.getElementById(`swatch-btn-${t}`).style.background = hex;
+        pop.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        sw.classList.add('active');
+        pop.classList.remove('open');
+        redraw();
+        updateShapesList();
+      });
+      pop.appendChild(sw);
+    });
+  });
+}
+
+document.querySelectorAll('.color-swatch-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const t = btn.dataset.tool;
+    const pop = document.getElementById(`popover-${t}`);
+    const isOpen = pop.classList.contains('open');
+    // Close all
+    document.querySelectorAll('.color-popover').forEach(p => p.classList.remove('open'));
+    if (!isOpen) pop.classList.add('open');
+  });
+});
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.color-popover').forEach(p => p.classList.remove('open'));
+});
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background image
+  if (bgImage) {
+    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+  }
+
+  // Grid
+  if (document.getElementById('chk-grid').checked) drawGrid();
+
+  // Committed shapes
+  for (let i = 0; i < shapes.length; i++) {
+    drawShape(shapes[i], false, i === hoveredShapeIdx);
+  }
+
+  // Shape being drawn
+  if (current.length) drawInProgress();
+}
+
+function drawGrid() {
+  ctx.strokeStyle = '#1e2235';
+  ctx.lineWidth = 1;
+  const step = 50;
+  for (let x = 0; x <= canvas.width; x += step) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += step) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+  // Axes
+  ctx.strokeStyle = '#2d3560';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, 0.5); ctx.lineTo(canvas.width, 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0.5, 0); ctx.lineTo(0.5, canvas.height); ctx.stroke();
+}
+
+function canvasPt(wx, wy) {
+  // world → canvas px (inverse of toWorld)
+  const W = parseFloat(document.getElementById('inp-w').value) || 1920;
+  const H = parseFloat(document.getElementById('inp-h').value) || 1080;
+  return {
+    cx: wx / W * canvas.width,
+    cy: wy / H * canvas.height,
+  };
+}
+
+function drawShape(s, preview, highlight) {
+  const color = preview ? COLORS.preview : s.color;
+
+  if (highlight) {
+    ctx.save();
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 18;
+  }
+
+  if (s.type === 'point') {
+    const { cx, cy } = canvasPt(s.pts[0][0], s.pts[0][1]);
+    drawDot(cx, cy, color, highlight ? 8 : 5);
+  } else if (s.type === 'line') {
+    const pts = s.pts.map(([wx,wy]) => canvasPt(wx, wy));
+    if (highlight) { ctx.lineWidth = 3; }
+    drawPolyLine(pts, color, false);
+    pts.forEach(p => drawDot(p.cx, p.cy, color, highlight ? 6 : 4));
+  } else if (s.type === 'polygon') {
+    const pts = s.pts.map(([wx,wy]) => canvasPt(wx, wy));
+    if (highlight) { ctx.lineWidth = 3; }
+    drawPolyLine(pts, color, true);
+    pts.forEach(p => drawDot(p.cx, p.cy, color, highlight ? 6 : 4));
+  }
+
+  if (highlight) ctx.restore();
+}
+
+function drawInProgress() {
+  if (!current.length) return;
+  const color = COLORS[tool];
+  const pts = current.map(([wx,wy]) => canvasPt(wx, wy));
+
+  if (tool === 'point') {
+    drawDot(pts[0].cx, pts[0].cy, color, 5);
+    return;
+  }
+
+  // Line to mouse
+  const allPts = [...pts, { cx: mouseCanvas.x, cy: mouseCanvas.y }];
+
+  drawPolyLine(allPts, COLORS.preview, tool === 'polygon');
+  pts.forEach(p => drawDot(p.cx, p.cy, color, 4));
+
+  // First point highlight for polygon close hint
+  if (tool === 'polygon' && pts.length >= 3) {
+    ctx.beginPath();
+    ctx.arc(pts[0].cx, pts[0].cy, 9, 0, Math.PI*2);
+    ctx.strokeStyle = COLORS.preview;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawDot(cx, cy, color, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#0d0f18';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawPolyLine(pts, color, close) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].cx, pts[0].cy);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].cx, pts[i].cy);
+  if (close) ctx.closePath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  if (close) {
+    ctx.fillStyle = color + '22';
+    ctx.fill();
+  }
+}
+
+// ── Mouse events ───────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  const { x, y } = getCanvasXY(e);
+  mouseCanvas = { x, y };
+
+  const w = toWorld(x, y);
+  const norm = document.getElementById('chk-norm').checked;
+  const dispX = norm ? round6(w.x / (parseFloat(document.getElementById('inp-w').value)||1920)) : round6(w.x);
+  const dispY = norm ? round6(w.y / (parseFloat(document.getElementById('inp-h').value)||1080)) : round6(w.y);
+  document.getElementById('sb-mouse').textContent = `(${dispX}, ${dispY})`;
+
+  // Cursor label
+  cursorLbl.style.display = 'block';
+  cursorLbl.style.left = (e.offsetX + 14) + 'px';
+  cursorLbl.style.top  = (e.offsetY + 14) + 'px';
+  cursorLbl.textContent = `${dispX}, ${dispY}`;
+
+  redraw();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  cursorLbl.style.display = 'none';
+  redraw();
+});
+
+canvas.addEventListener('click', e => {
+  const { x, y } = getCanvasXY(e);
+  const w = toWorld(x, y);
+  const coord = [round6(w.x), round6(w.y)]; // store raw world coords
+
+  if (tool === 'point') {
+    commitShape({ type: 'point', color: COLORS[tool], pts: [coord] });
+    return;
+  }
+
+  if (tool === 'line' || tool === 'polygon') {
+    // Check close polygon
+    if (tool === 'polygon' && current.length >= 3) {
+      const first = canvasPt(current[0][0], current[0][1]);
+      const dx = first.cx - x, dy = first.cy - y;
+      if (Math.sqrt(dx*dx + dy*dy) < 12) {
+        finishShape();
+        return;
+      }
+    }
+    current.push(coord);
+    // Auto-finish line after 2 points (start + end)
+    if (tool === 'line' && current.length === 2) {
+      finishShape();
+      return;
+    }
+    redraw();
+    updateHint();
+  }
+});
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (tool === 'polygon') {
+    if (current.length >= 3) {
+      finishShape();
+    } else {
+      // Not enough points — discard
+      current = [];
+      redraw();
+      updateHint();
+    }
+  }
+});
+
+canvas.addEventListener('dblclick', e => {
+  if (tool === 'polygon' && current.length >= 3) {
+    current.pop();
+    finishShape();
+  }
+});
+
+// ── Shape management ───────────────────────────────────────
+function finishShape() {
+  if (!current.length) return;
+  if (tool === 'line' && current.length < 2) { current = []; redraw(); return; }
+  if (tool === 'polygon' && current.length < 3) { current = []; redraw(); return; }
+  commitShape({ type: tool, color: COLORS[tool], pts: [...current] });
+  current = [];
+}
+
+function commitShape(s) {
+  shapes.push(s);
+  current = [];
+  redraw();
+  updateShapesList();
+  updateJSON();
+  document.getElementById('sb-count').textContent = shapes.length;
+}
+
+// ── Undo ───────────────────────────────────────────────────
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (current.length) {
+    current.pop();
+  } else {
+    shapes.pop();
+    updateShapesList();
+    updateJSON();
+    document.getElementById('sb-count').textContent = shapes.length;
+  }
+  redraw();
+});
+
+document.getElementById('btn-finish').addEventListener('click', finishShape);
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  shapes = []; current = [];
+  updateShapesList();
+  updateJSON();
+  document.getElementById('sb-count').textContent = 0;
+  redraw();
+});
+
+// ── Tool switching ─────────────────────────────────────────
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (current.length) finishShape();
+    tool = btn.dataset.tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('sb-tool').textContent = capitalize(tool);
+    updateHint();
+  });
+});
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function updateHint() {
+  const hints = {
+    point:   'Click to place a point',
+    line:    current.length ? `${current.length} pt(s) — click to add, double-click to finish` : 'Click to start a line',
+    polygon: current.length ? `${current.length} pt(s) — click to add, double-click or click near start to close` : 'Click to start a polygon',
+  };
+  document.getElementById('sb-hint').textContent = hints[tool] || '';
+}
+
+// ── Norm toggle & size change ──────────────────────────────
+document.getElementById('chk-norm').addEventListener('change', () => { updateShapesList(); updateJSON(); });
+document.getElementById('chk-grid').addEventListener('change', () => { redraw(); });
+document.getElementById('inp-w').addEventListener('input', () => { redraw(); updateShapesList(); updateJSON(); });
+document.getElementById('inp-h').addEventListener('input', () => { redraw(); updateShapesList(); updateJSON(); });
+
+// ── Shapes list UI ─────────────────────────────────────────
+function updateShapesList() {
+  const list = document.getElementById('shapes-list');
+  if (!shapes.length) {
+    list.innerHTML = '<p style="color:#4a5568;font-size:.8rem">No shapes yet. Click on the canvas to start.</p>';
+    return;
+  }
+  list.innerHTML = shapes.map((s, i) => {
+    const pts = s.pts.map(([wx,wy]) => formatCoord(wx, wy));
+    const ptsStr = JSON.stringify(pts);
+    const badge = `<span class="shape-badge badge-${s.type}">${s.type.toUpperCase()}</span>`;
+    return `<div class="shape-item" data-idx="${i}">
+      <div class="shape-item-header">
+        <span>${badge} <span style="color:#64748b;font-size:.7rem">#${i+1}</span></span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="position:relative;display:inline-flex;align-items:center">
+            <span class="shape-color-dot color-swatch-btn" data-idx="${i}" style="background:${s.color}" title="Change color"></span>
+            <div class="color-popover shape-color-pop" id="shape-pop-${i}"></div>
+          </span>
+          <button class="shape-copy" data-idx="${i}" title="Copy coordinates">⎘</button>
+          <button class="shape-del"  data-idx="${i}" title="Delete">✕</button>
+        </span>
+      </div>
+      <div class="shape-coords">${ptsStr}</div>
+    </div>`;
+  }).join('');
+
+  // Build per-shape color popovers
+  shapes.forEach((s, i) => {
+    const pop = document.getElementById(`shape-pop-${i}`);
+    PALETTE.forEach(hex => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (s.color === hex ? ' active' : '');
+      sw.style.background = hex;
+      sw.title = hex;
+      sw.addEventListener('click', e => {
+        e.stopPropagation();
+        shapes[i].color = hex;
+        pop.classList.remove('open');
+        redraw();
+        updateShapesList();
+      });
+      pop.appendChild(sw);
+    });
+  });
+
+  list.querySelectorAll('.shape-color-dot').forEach(dot => {
+    dot.addEventListener('click', e => {
+      e.stopPropagation();
+      const i = parseInt(dot.dataset.idx);
+      const pop = document.getElementById(`shape-pop-${i}`);
+      const isOpen = pop.classList.contains('open');
+      document.querySelectorAll('.color-popover').forEach(p => p.classList.remove('open'));
+      if (!isOpen) pop.classList.add('open');
+    });
+  });
+
+  list.querySelectorAll('.shape-item').forEach(item => {
+    const i = parseInt(item.dataset.idx);
+    item.addEventListener('mouseenter', () => { hoveredShapeIdx = i; redraw(); });
+    item.addEventListener('mouseleave', () => { hoveredShapeIdx = -1; redraw(); });
+  });
+
+  list.querySelectorAll('.shape-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx);
+      const s = shapes[i];
+      const pts = s.pts.map(([wx,wy]) => formatCoord(wx, wy));
+      let text;
+      if (s.type === 'point') {
+        text = JSON.stringify(pts[0]);
+      } else {
+        text = JSON.stringify(pts);
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '⎘'; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+  });
+
+  list.querySelectorAll('.shape-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      shapes.splice(parseInt(btn.dataset.idx), 1);
+      updateShapesList();
+      updateJSON();
+      document.getElementById('sb-count').textContent = shapes.length;
+      redraw();
+    });
+  });
+}
+
+// ── JSON output ────────────────────────────────────────────
+function updateJSON() {
+  const points   = shapes.filter(s => s.type === 'point')  .map(s => formatCoord(s.pts[0][0], s.pts[0][1]));
+  const lines    = shapes.filter(s => s.type === 'line')   .map(s => s.pts.map(([wx,wy]) => formatCoord(wx,wy)));
+  const polygons = shapes.filter(s => s.type === 'polygon').map(s => s.pts.map(([wx,wy]) => formatCoord(wx,wy)));
+
+  const out = {};
+  if (points.length)   out.points   = points;
+  if (lines.length)    out.lines    = lines;
+  if (polygons.length) out.polygons = polygons;
+
+  document.getElementById('json-box').textContent = JSON.stringify(out, null, 2);
+}
+
+document.getElementById('btn-copy-json').addEventListener('click', () => {
+  const text = document.getElementById('json-box').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-copy-json');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy JSON', 1500);
+  });
+});
+
+// ── Panel tabs ─────────────────────────────────────────────
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const name = tab.dataset.panel;
+    document.querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.panel-content').forEach(p => {
+      p.classList.toggle('active', p.id === `panel-${name}`);
+    });
+  });
+});
+
+// ── Keyboard shortcuts ─────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'p' || e.key === 'P') document.querySelector('[data-tool=point]').click();
+  if (e.key === 'l' || e.key === 'L') document.querySelector('[data-tool=line]').click();
+  if (e.key === 'g' || e.key === 'G') document.querySelector('[data-tool=polygon]').click();
+  if (e.key === 'Escape') { current = []; redraw(); updateHint(); }
+  if (e.key === 'Enter')  finishShape();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); document.getElementById('btn-undo').click(); }
+});
+
+// ── Background image ──────────────────────────────────────
+document.getElementById('btn-bg').addEventListener('click', () => {
+  document.getElementById('inp-bg-file').click();
+});
+
+document.getElementById('inp-bg-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    bgImage = img;
+    // Auto-set W / H from image natural dimensions
+    document.getElementById('inp-w').value = img.naturalWidth;
+    document.getElementById('inp-h').value = img.naturalHeight;
+    document.getElementById('btn-rmbg').style.display = '';
+    updateShapesList();
+    updateJSON();
+    redraw();
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+  // Reset so the same file can be re-imported
+  e.target.value = '';
+});
+
+document.getElementById('btn-rmbg').addEventListener('click', () => {
+  bgImage = null;
+  document.getElementById('btn-rmbg').style.display = 'none';
+  redraw();
+});
+
+// ── Export PNG ─────────────────────────────────────────────
+document.getElementById('btn-export').addEventListener('click', () => {
+  // Draw a clean frame (no in-progress ghost) onto an offscreen canvas at full resolution
+  const W = parseFloat(document.getElementById('inp-w').value) || canvas.width;
+  const H = parseFloat(document.getElementById('inp-h').value) || canvas.height;
+
+  const off = document.createElement('canvas');
+  off.width  = W;
+  off.height = H;
+  const octx = off.getContext('2d');
+
+  // Background image
+  if (bgImage) {
+    octx.drawImage(bgImage, 0, 0, W, H);
+  } else {
+    octx.fillStyle = '#0d0f18';
+    octx.fillRect(0, 0, W, H);
+  }
+
+  // Draw shapes at full resolution
+  const prevCanvas = canvas;
+  // Temporarily scale drawing helpers by overriding canvasPt inline
+  const scaleX = W / canvas.width;
+  const scaleY = H / canvas.height;
+
+  function offPt(wx, wy) {
+    const cW = parseFloat(document.getElementById('inp-w').value) || 1920;
+    const cH = parseFloat(document.getElementById('inp-h').value) || 1080;
+    return { cx: wx / cW * W, cy: wy / cH * H };
+  }
+
+  function offDot(cx, cy, color, r) {
+    octx.beginPath();
+    octx.arc(cx, cy, r * scaleX, 0, Math.PI * 2);
+    octx.fillStyle = color;
+    octx.fill();
+    octx.strokeStyle = '#0d0f18';
+    octx.lineWidth = 1.5 * scaleX;
+    octx.stroke();
+  }
+
+  function offPolyLine(pts, color, close) {
+    if (pts.length < 2) return;
+    octx.beginPath();
+    octx.moveTo(pts[0].cx, pts[0].cy);
+    for (let i = 1; i < pts.length; i++) octx.lineTo(pts[i].cx, pts[i].cy);
+    if (close) octx.closePath();
+    octx.strokeStyle = color;
+    octx.lineWidth = 1.5 * scaleX;
+    octx.stroke();
+    if (close) { octx.fillStyle = color + '22'; octx.fill(); }
+  }
+
+  for (const s of shapes) {
+    const color = s.color;
+    if (s.type === 'point') {
+      const { cx, cy } = offPt(s.pts[0][0], s.pts[0][1]);
+      offDot(cx, cy, color, 5);
+    } else if (s.type === 'line') {
+      const pts = s.pts.map(([wx,wy]) => offPt(wx, wy));
+      offPolyLine(pts, color, false);
+      pts.forEach(p => offDot(p.cx, p.cy, color, 4));
+    } else if (s.type === 'polygon') {
+      const pts = s.pts.map(([wx,wy]) => offPt(wx, wy));
+      offPolyLine(pts, color, true);
+      pts.forEach(p => offDot(p.cx, p.cy, color, 4));
+    }
+  }
+
+  const link = document.createElement('a');
+  link.download = 'polytool-export.png';
+  link.href = off.toDataURL('image/png');
+  link.click();
+});
+
+// ── Init ───────────────────────────────────────────────────
+buildPopovers();
+resizeCanvas();
+updateJSON();
+updateHint();
+</script>
+</body>
+</html>
